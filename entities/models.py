@@ -8,6 +8,8 @@ from django.utils.translation import gettext as _
 class BaseEntity(models.Model):
     """Abstract class to be extended for each entity"""
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4().hex,
+                          editable=False)
     created = models.DateTimeField(
         auto_now_add=True,
         help_text="Records when the object was added to the database"
