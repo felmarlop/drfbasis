@@ -12,14 +12,23 @@ class User(AbstractUser):
         max_length=40,
         null=True,
         editable=False,
+        unique=True,
         help_text=_("UUID `uuid4` random unique ID"),
+    )
+    alt_name = models.CharField(
+        default="master",
+        max_length=25,
+        null=False,
+        unique=True,
+        editable=True,
+        help_text=_("Alternative name")
     )
     email = models.EmailField(
         _("email address"),
         blank=False,
         unique=True,
         error_messages={
-            "unique": _("This email address is already in use."),
+            "unique": _("This email address is already in use.")
         },
     )
     email_validated = models.BooleanField(
