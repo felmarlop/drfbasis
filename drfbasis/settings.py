@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
 import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -33,6 +34,7 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     'corsheaders',
+    'django_filters',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -110,8 +112,23 @@ AUTH_USER_MODEL = "authentication.User"
 
 # Pagination
 REST_FRAMEWORK = {
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend'
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication'
+    ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20
+}
+
+REFRESH_TOKEN_DAYS=1
+ACCESS_TOKEN_DAYS=7
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=int(ACCESS_TOKEN_DAYS)),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=int(REFRESH_TOKEN_DAYS)),
+    "BLACKLIST_AFTER_ROTATION": False,
 }
 
 

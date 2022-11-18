@@ -16,6 +16,10 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 from rest_framework import routers
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView
+)
 from authentication.views import UserViewSet, GroupViewSet
 from entities.views import EntityViewSet
 from django.conf import settings
@@ -29,7 +33,8 @@ router.register(r'entities', EntityViewSet)
 urlpatterns = [
     path('', include(router.urls)),
     path('admin/', admin.site.urls),
-    path('api-auth/', include('rest_framework.urls', namespace='rest_framework'))
+    path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
+    path('auth/', include('authentication.urls'))
 ]
 
 if settings.DEBUG:

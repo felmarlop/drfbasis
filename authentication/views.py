@@ -1,8 +1,13 @@
 from django.contrib.auth.models import Group
 from authentication.models import User
-from rest_framework import viewsets
-from rest_framework import permissions
-from authentication.serializers import UserSerializer, GroupSerializer
+from rest_framework import permissions, viewsets, generics
+from authentication.serializers import (
+    UserSerializer,
+    GroupSerializer,
+    MyTokenObtainPairSerializer,
+    RegisterSerializer
+)
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -36,3 +41,15 @@ class GroupViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all()
     serializer_class = GroupSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+
+class MyObtainTokenPairView(TokenObtainPairView):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = MyTokenObtainPairSerializer
+
+
+#CreateAPIView used for create-only endpoints only POST
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = RegisterSerializer

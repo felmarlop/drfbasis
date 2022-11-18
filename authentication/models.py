@@ -12,30 +12,29 @@ class User(AbstractUser):
         max_length=40,
         null=True,
         editable=False,
-        unique=True,
-        help_text=_("UUID `uuid4` random unique ID"),
+        unique=True
     )
     alt_name = models.CharField(
         default="master",
         max_length=25,
         null=False,
         unique=True,
-        editable=True,
-        help_text=_("Alternative name")
+        editable=True
+    )
+    i_alt_name = models.CharField(
+        default="master",
+        max_length=25,
+        null=False,
+        unique=True,
+        editable=True
     )
     email = models.EmailField(
         _("email address"),
         blank=False,
-        unique=True,
-        error_messages={
-            "unique": _("This email address is already in use.")
-        },
+        unique=True
     )
     email_validated = models.BooleanField(
-        default=False,
-        help_text=_(
-            "Whether the email address has been validated through the validation link"
-        ),
+        default=False
     )
 
     def __str__(self):
