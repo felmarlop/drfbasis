@@ -74,24 +74,89 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def validate_alt_name(self, value):
         if not re.match("^[A-Za-z0-9 _-]*$", value):
-            raise serializers.ValidationError("Please, use only letters and numbers")
+            raise serializers.ValidationError({"alt_name": "Please, use only letters and numbers"})
         if User.objects.filter(i_alt_name=value.lower()).exists():
-            raise serializers.ValidationError("This alternative name is already in use")
+            raise serializers.ValidationError({"alt_name": "This alternative name is already in use"})
         return value
 
     # called when POST
     def create(self, validated_data):
-        '''user = User.objects.create(
+        user = User.objects.create(
             username=validated_data['username'],
             alt_name=validated_data['alt_name'],
+            i_alt_name=validated_data['alt_name'].lower(),
             email=validated_data['email']
         )
         user.set_password(validated_data['password'])
-        '''
-
-        user = User.objects.create_user(validated_data['username'], validated_data['email'], validated_data['password'])
-        user.alt_name = validated_data['alt_name']
-        user.i_alt_name = validated_data['alt_name'].lower()
         user.save()
-
         return user
+    
+
+class ChangePasswordSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
+    password2 = serializers.CharField(write_only=True, required=True)
+    old_password = serializers.CharField(write_only=True, required=True)
+
+    class Meta:
+        model = User
+        fields = ('old_password', 'password', 'password2')
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password2']:
+            raise serializers.ValidationError({"password": "Passwords didn't match."})
+
+        return attrs
+
+    def validate_old_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError({"old_password": "Old password is not correct"})
+        return value
+
+    # PUT request
+    def update(self, instance, validated_data):
+        user = self.context['request'].user
+        if user.pk != instance.pk:
+            raise serializers.ValidationError({"authorize": "You dont have permission for this user."})
+
+        instance.set_password(validated_data['password'])
+        instance.save()
+        return instance
+
+
+class UpdateUserSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(required=True)
+
+    class Meta:
+        model = User
+        fields = ('username', 'email', 'alt_name')
+        extra_kwargs = {
+            'username': {'required': True},
+            'alt_name': {'required': True},
+        }
+
+    def validate_email(self, value):
+        user = self.context['request'].user
+        if User.objects.exclude(pk=user.pk).filter(email=value).exists():
+            raise serializers.ValidationError({"email": "This email is already in use."})
+        return value
+
+    def validate(self, attrs):
+        user = self.context['request'].user
+        if User.objects.exclude(pk=user.pk).filter(username=attrs['username']).exists():
+            raise serializers.ValidationError({"username": "This username is already in use."})
+        if User.objects.exclude(pk=user.pk).filter(username=attrs['alt_name']).exists():
+            raise serializers.ValidationError({"alt_name": "This alternative name is already in use."})
+        return attrs
+
+    # PUT request
+    def update(self, instance, validated_data):
+        user = self.context['request'].user
+        if user.pk != instance.pk:
+            raise serializers.ValidationError({"authorize": "You dont have permission for this user."})
+
+        instance.email = validated_data['email']
+        instance.username = validated_data['username']
+        instance.alt_name = validated_data['alt_name']
+        instance.save()
+        return instance
