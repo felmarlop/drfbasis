@@ -1,15 +1,20 @@
 from django.contrib.auth.models import Group
 from authentication.models import User
-from rest_framework import permissions, viewsets, generics
+from rest_framework import (
+    permissions,
+    viewsets,
+    generics,
+    response,
+    status
+)
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from authentication.serializers import (
     UserSerializer,
     GroupSerializer,
-    MyTokenObtainPairSerializer,
     RegisterSerializer,
     ChangePasswordSerializer,
     UpdateUserSerializer
 )
-from rest_framework_simplejwt.views import TokenObtainPairView
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -45,11 +50,6 @@ class GroupViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
 
-class MyObtainTokenPairView(TokenObtainPairView):
-    permission_classes = [permissions.AllowAny]
-    serializer_class = MyTokenObtainPairSerializer
-
-
 #CreateAPIView used for create-only endpoints only POST
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -67,3 +67,17 @@ class UpdateProfileView(generics.UpdateAPIView):
     queryset = User.objects.all()
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = UpdateUserSerializer
+
+class LogoutView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def post(self, request):
+        try:
+            tokens = OutstandingToken.objects.filter(user_id=request.user.id)
+            for token in tokens:
+                t, _ = BlacklistedToken.objects.get_or_create(token=token)
+            return response.Response(status=status.HTTP_205_RESET_CONTENT)
+        except Exception as e:
+            return response.Response(
+                {"message": "An error happened adding the token to the black list: %s" % e},
+                status=status.HTTP_400_BAD_REQUEST
+            )
