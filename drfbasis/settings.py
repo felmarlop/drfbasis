@@ -24,11 +24,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-k69eihr-ls75i99x47d3w4#gunzkwa8e159_&!t0k@y-_2(sm7'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 
-ALLOWED_HOSTS = []
+APP_TITLE = "my app"
 
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 
@@ -63,7 +62,7 @@ ROOT_URLCONF = 'drfbasis.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -80,6 +79,22 @@ WSGI_APPLICATION = 'drfbasis.wsgi.application'
 
 # ##### CORS ########
 CORS_ALLOW_ALL_ORIGINS = True
+
+DEFAULT_FROM_EMAIL='felix.ml.1990@gmail.com'
+
+# Run with ngrok
+if os.getenv('NGROK', False):
+    DEBUG = False
+    PROTOCOL = 'https://'
+    COMPRESS_ENABLED = True
+    HOST_URL = os.getenv('HOST_URL', False)
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+else:
+    DEBUG = True
+    PROTOCOL = 'http://'
+    COMPRESS_ENABLED = False
+    HOST_URL = 'localhost:8891'
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases

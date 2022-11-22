@@ -1,5 +1,12 @@
+import base64
 from django.contrib.auth.models import Group
 from authentication.models import User
+from django.utils import http, encoding
+from django.contrib.auth import tokens
+from django.template import loader
+from django.core import mail
+from django.contrib.sites import shortcuts
+from django.conf import settings
 from rest_framework import (
     permissions,
     viewsets,
@@ -7,13 +14,19 @@ from rest_framework import (
     response,
     status
 )
-from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+from rest_framework_simplejwt.token_blacklist.models import (
+    OutstandingToken,
+    BlacklistedToken
+)
+from rest_framework_simplejwt.tokens import RefreshToken
 from authentication.serializers import (
     UserSerializer,
     GroupSerializer,
     RegisterSerializer,
     ChangePasswordSerializer,
-    UpdateUserSerializer
+    UpdateUserSerializer,
+    ForgotPasswordSerializer,
+    ResetPasswordSerializer
 )
 
 
@@ -62,11 +75,95 @@ class ChangePasswordView(generics.UpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = ChangePasswordSerializer
 
+    # Replicate method to return a custom message
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data,
+                                         partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return response.Response(
+            {"message":"The %s password was changed" % request.user.username},
+            status=status.HTTP_202_ACCEPTED)
+
 
 class UpdateProfileView(generics.UpdateAPIView):
     queryset = User.objects.all()
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = UpdateUserSerializer
+
+
+class ForgotPasswordRequest(generics.GenericAPIView):
+    permission_classes = []
+    serializer_class = ForgotPasswordSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Validated in serializer
+        users = User.objects.filter(email=serializer.data.get("email", ""))
+        user = users.first()
+
+        token = tokens.PasswordResetTokenGenerator().make_token(user)
+        user_idb64 = http.urlsafe_base64_encode(encoding.smart_bytes(user.id))
+
+        message = loader.render_to_string(
+        'emails/password_reset.html', {
+            'user': user,
+            'protocol': settings.PROTOCOL,
+            'domain': shortcuts.get_current_site(request).domain,
+            'app_title': settings.APP_TITLE,
+            "url_reset": f"/auth/reset-password/{user_idb64}/{token}/",
+            'uid': user_idb64,
+            'token': token,
+        })
+
+        mail.send_mail(
+            'Reset your password',
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [user.email],
+            fail_silently=False,
+        )
+
+        return response.Response(
+            {"message": "The email to reset the password was sent"},
+            status=status.HTTP_200_OK
+        )
+
+
+class ResetPasswordRequest(generics.GenericAPIView):
+    permission_classes = []
+    serializer_class = ResetPasswordSerializer
+
+    def post(self, request, uidb64, token):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            user_id = http.urlsafe_base64_decode(uidb64)
+            user = User.objects.get(id=user_id)
+            pwd = serializer.data.get("password")
+            user.set_password(pwd)
+            user.is_active = True
+            user.save()
+
+            # generate new token
+            token = RefreshToken.for_user(user)
+        except Exception as e:
+            return response.Response(
+                {"message":"An error happened trying to reset the password: %s"
+                 % e}, status=status.HTTP_400_BAD_REQUEST)
+        return response.Response(
+            {"message":"The password for the user %s was reset"
+                % user.username,
+             "refresh": str(token),
+             "access": str(token.access_token)
+            },
+            status=status.HTTP_202_ACCEPTED)
+
 
 class LogoutView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -78,6 +175,7 @@ class LogoutView(generics.GenericAPIView):
             return response.Response(status=status.HTTP_205_RESET_CONTENT)
         except Exception as e:
             return response.Response(
-                {"message": "An error happened adding the token to the black list: %s" % e},
+                {"message":
+                 "An error happened invalidating the token: %s" % e},
                 status=status.HTTP_400_BAD_REQUEST
             )
