@@ -8,8 +8,12 @@ from django.utils.translation import gettext as _
 class BaseEntity(models.Model):
     """Abstract class to be extended for each entity"""
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4().hex,
-                          editable=False)
+    uid = models.CharField(
+        max_length=40,
+        null=True,
+        editable=False,
+        unique=True
+    )
     created = models.DateTimeField(
         auto_now_add=True,
         help_text="Records when the object was added to the database"
@@ -29,6 +33,11 @@ class BaseEntity(models.Model):
     def getobj(cls, id):
         """Retrieve an object from the db by it's unique id"""
         return cls.objects.get(id=id)
+
+    def save(self, *args, **kwargs):
+        if not self.uid:
+            self.uid = str(uuid.uuid4())
+        super().save(*args, **kwargs)
 
 
 class Entity(BaseEntity):
