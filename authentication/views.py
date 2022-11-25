@@ -165,6 +165,19 @@ class UpdateProfileView(generics.UpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = UpdateUserSerializer
 
+    # Replicate method to return a custom message
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data,
+                                         partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return response.Response({
+            "message":"The %s profile was changed" % request.user.username,
+            "data": serializer.data
+        }, status=status.HTTP_202_ACCEPTED)
+
 
 class ForgotPasswordRequest(generics.GenericAPIView):
     permission_classes = []

@@ -109,14 +109,14 @@ class ChangePasswordSerializer(serializers.ModelSerializer):
 
 
 class UpdateUserSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(required=True)
+    email = serializers.EmailField(required=False)
 
     class Meta:
         model = User
         fields = ('username', 'email', 'alt_name')
         extra_kwargs = {
-            'username': {'required': True},
-            'alt_name': {'required': True},
+            'username': {'required': False},
+            'alt_name': {'required': False},
         }
 
     def validate_email(self, value):
@@ -127,9 +127,11 @@ class UpdateUserSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         user = self.context['request'].user
-        if User.objects.exclude(pk=user.pk).filter(username=attrs['username']).exists():
+        if ('username' in attrs
+                and User.objects.exclude(pk=user.pk).filter(username=attrs['username']).exists()):
             raise serializers.ValidationError({"username": "This username is already in use."})
-        if User.objects.exclude(pk=user.pk).filter(username=attrs['alt_name']).exists():
+        if ('alt_name' in attrs
+                and User.objects.exclude(pk=user.pk).filter(username=attrs['alt_name']).exists()):
             raise serializers.ValidationError({"alt_name": "This alternative name is already in use."})
         return attrs
 
@@ -137,11 +139,13 @@ class UpdateUserSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         user = self.context['request'].user
         if user.pk != instance.pk:
-            raise serializers.ValidationError({"authorize": "You dont have permission for this user."})
+            raise serializers.ValidationError({"authorize": "You dont have permissions to update this user."})
 
-        instance.email = validated_data['email']
-        instance.username = validated_data['username']
-        instance.alt_name = validated_data['alt_name']
+        for k in validated_data:
+            setattr(instance, k, validated_data[k])
+            if k == 'alt_name':
+                setattr(instance, 'i_alt_name', validated_data[k].lower())
+
         instance.save()
         return instance
 
