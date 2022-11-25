@@ -27,11 +27,13 @@ pip install -r requirements.txt
 
 ### Run with runserver
 ``` bash
-python manage.py runserver 8898
+python manage.py runserver 8891
 ```
 
 More documentation
 ----------------------
-    - https://medium.com/django-rest
-    - https://www.django-rest-framework.org/
-    - https://django-rest-framework-simplejwt.readthedocs.io/en/latest/
+- [Django rest examples](https://medium.com/django-rest)
+- [Django rest framework doc](https://www.django-rest-framework.org/)
+- [DRF JSON web tokens](https://django-rest-framework-simplejwt.readthedocs.io/en/latest/)
+   
+
