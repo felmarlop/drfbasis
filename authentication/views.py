@@ -4,7 +4,7 @@ from authentication.models import User
 from django.utils import http, encoding
 from django.contrib.auth import tokens
 from django.template import loader
-from django.core import mail
+from django.core import mail, serializers
 from django.contrib.sites import shortcuts
 from django.conf import settings
 from rest_framework import (
@@ -65,9 +65,81 @@ class GroupViewSet(viewsets.ModelViewSet):
 
 #CreateAPIView used for create-only endpoints only POST
 class RegisterView(generics.CreateAPIView):
-    queryset = User.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = RegisterSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            user = User.objects.create(
+                username=serializer.validated_data['username'],
+                alt_name=serializer.validated_data['alt_name'],
+                i_alt_name=serializer.validated_data['alt_name'].lower(),
+                email=serializer.validated_data['email']
+            )
+            user.set_password(serializer.validated_data['password'])
+            user.is_active = False
+            user.save()
+        except Exception:
+            return response.Response({
+                "message":"An error happened creating the user: %s"
+                % e
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        token = tokens.PasswordResetTokenGenerator().make_token(user)
+        user_idb64 = http.urlsafe_base64_encode(encoding.smart_bytes(user.id))
+        message = loader.render_to_string('emails/account_activation.html', {
+            'user': user,
+            'protocol': settings.PROTOCOL,
+            'domain': shortcuts.get_current_site(request).domain,
+            'app_title': settings.APP_TITLE,
+            "url_reset": f"/auth/activate-account/{user_idb64}/{token}/"
+        })
+
+        mail.send_mail(
+            'Activate your account',
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [user.email],
+            fail_silently=False,
+        )
+
+        return response.Response({
+            "message":"The user %s was created. Activation email sent"
+                % user.username,
+            "data": serializer.data
+        }, status=status.HTTP_202_ACCEPTED)
+
+
+class ActivationView(generics.GenericAPIView):
+    permission_classes = []
+
+    def get(self, request, uidb64, token):
+        try:
+            user_id = http.urlsafe_base64_decode(uidb64)
+            user = User.objects.get(id=user_id)
+            if not tokens.PasswordResetTokenGenerator().check_token(user, token):
+                return response.Response({
+                    "message":"The activation link is invalid"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            user.is_active = True
+            user.save()
+
+            # generate new token
+            token = RefreshToken.for_user(user)
+        except Exception as e:
+            return response.Response({
+                "message":"An error happened trying to activate the account: %s"
+                % e
+            }, status=status.HTTP_400_BAD_REQUEST)
+        return response.Response({
+            "message":"The %s account was activated" % user.username,
+            "refresh": str(token),
+            "access": str(token.access_token)
+        }, status=status.HTTP_202_ACCEPTED)
+
 
 
 class ChangePasswordView(generics.UpdateAPIView):
@@ -83,9 +155,9 @@ class ChangePasswordView(generics.UpdateAPIView):
                                          partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        return response.Response(
-            {"message":"The %s password was changed" % request.user.username},
-            status=status.HTTP_202_ACCEPTED)
+        return response.Response({
+            "message":"The %s password was changed" % request.user.username
+        }, status=status.HTTP_202_ACCEPTED)
 
 
 class UpdateProfileView(generics.UpdateAPIView):
@@ -109,15 +181,12 @@ class ForgotPasswordRequest(generics.GenericAPIView):
         token = tokens.PasswordResetTokenGenerator().make_token(user)
         user_idb64 = http.urlsafe_base64_encode(encoding.smart_bytes(user.id))
 
-        message = loader.render_to_string(
-        'emails/password_reset.html', {
+        message = loader.render_to_string('emails/password_reset.html', {
             'user': user,
             'protocol': settings.PROTOCOL,
             'domain': shortcuts.get_current_site(request).domain,
             'app_title': settings.APP_TITLE,
-            "url_reset": f"/auth/reset-password/{user_idb64}/{token}/",
-            'uid': user_idb64,
-            'token': token,
+            "url_reset": f"/auth/reset-password/{user_idb64}/{token}/"
         })
 
         mail.send_mail(
@@ -128,10 +197,9 @@ class ForgotPasswordRequest(generics.GenericAPIView):
             fail_silently=False,
         )
 
-        return response.Response(
-            {"message": "The email to reset the password was sent"},
-            status=status.HTTP_200_OK
-        )
+        return response.Response({
+            "message": "The email to reset the password was sent"
+        }, status=status.HTTP_200_OK)
 
 
 class ResetPasswordRequest(generics.GenericAPIView):
@@ -145,6 +213,11 @@ class ResetPasswordRequest(generics.GenericAPIView):
         try:
             user_id = http.urlsafe_base64_decode(uidb64)
             user = User.objects.get(id=user_id)
+            if not tokens.PasswordResetTokenGenerator().check_token(user, token):
+                return response.Response({
+                    "message":"The reset link is invalid"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             pwd = serializer.data.get("password")
             user.set_password(pwd)
             user.is_active = True
@@ -153,16 +226,16 @@ class ResetPasswordRequest(generics.GenericAPIView):
             # generate new token
             token = RefreshToken.for_user(user)
         except Exception as e:
-            return response.Response(
-                {"message":"An error happened trying to reset the password: %s"
-                 % e}, status=status.HTTP_400_BAD_REQUEST)
-        return response.Response(
-            {"message":"The password for the user %s was reset"
-                % user.username,
-             "refresh": str(token),
-             "access": str(token.access_token)
-            },
-            status=status.HTTP_202_ACCEPTED)
+            return response.Response({
+                "message":"An error happened trying to reset the password: %s"
+                % e
+            }, status=status.HTTP_400_BAD_REQUEST)
+        return response.Response({
+            "message":"The password for the user %s was reset"
+            % user.username,
+            "refresh": str(token),
+            "access": str(token.access_token)
+        }, status=status.HTTP_202_ACCEPTED)
 
 
 class LogoutView(generics.GenericAPIView):

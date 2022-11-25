@@ -67,18 +67,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         if User.objects.filter(i_alt_name=value.lower()).exists():
             raise serializers.ValidationError({"alt_name": "This alternative name is already in use"})
         return value
-
-    # called when POST
-    def create(self, validated_data):
-        user = User.objects.create(
-            username=validated_data['username'],
-            alt_name=validated_data['alt_name'],
-            i_alt_name=validated_data['alt_name'].lower(),
-            email=validated_data['email']
-        )
-        user.set_password(validated_data['password'])
-        user.save()
-        return user
     
 
 class ChangePasswordSerializer(serializers.ModelSerializer):
