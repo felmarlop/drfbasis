@@ -30,6 +30,12 @@ pip install -r requirements.txt
 python manage.py runserver 8891
 ```
 
+*Note*: To run and expose the service using **ngrok**, set the following environment variable:
+```bash
+export NGROK=True
+export HOST_URL='<public_url>'
+```
+
 Useful documentation
 ----------------------
 - [Python | Django & Rest](https://medium.com/django-rest)
