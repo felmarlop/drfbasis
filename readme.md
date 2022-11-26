@@ -21,6 +21,7 @@ brew services restart postgresql
 ### Install requirements
 *Note*: Create a virtual environment with **python3** before
 ``` bash
+python3 -m venv /path/to/new/virtual/environment
 pip install -r requirements.txt
 
 ```
